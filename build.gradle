@@ -1,0 +1,112 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.4.5'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(20)
+    }
+    sourceCompatibility = JavaVersion.VERSION_17  // исходный код совместим с Java 17
+    targetCompatibility = JavaVersion.VERSION_17  // байт-код под Java 17
+}
+
+repositories {
+    mavenCentral()
+}
+
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-web-services'
+
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    implementation 'at.favre.lib:bcrypt:0.9.0'
+    implementation 'org.postgresql:postgresql:42.6.0'
+
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.register('welcome') {
+    group = 'custom'
+    doLast {
+        println "welcome from katya pim"
+    }
+}
+
+tasks.register('custom-compile', Exec) {
+    description = "компиляция исходных файлов проекта"
+    group = 'custom'
+
+    def srcDir = "src/main/java/com/example" // папка с исходниками
+    def outputDir = layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
+
+    def javaFiles = fileTree(srcDir).filter { it.name.endsWith('.java') }.files
+    def javaFilesPaths = javaFiles.collect { it.absolutePath }
+
+    // формируем classpath = папка с классами + модули зависимостей
+    def classpath = sourceSets.main.compileClasspath.asPath
+    // Gradle uses the sourceSets API to define and manage the source code structure of a project.
+
+    commandLine("javac",
+            "-d", outputDir,
+            "-cp", classpath,
+            *javaFilesPaths) // spread-оператор (разворачивает список в аргументы)
+
+//    doFirst {
+//        println "classpath: $classpath"
+//        println "исходники: ${javaFilesPaths.join('\n')}"
+//    }
+
+    doLast {
+        println "✅все исходные файлы скомпилированы в: ${outputDir.replace(projectDir.absolutePath + '/', '')}"
+    }
+}
+
+
+tasks.register('custom-build', Exec) {
+    group = "custom"
+    description = "компиляция исходных кодов проекта (посредством вызова цели компайл) и их упаковка в исполняемый jar-архив"
+
+    dependsOn('custom-compile')
+
+    def outputDir = layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
+    def jarFile = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile
+
+    commandLine("jar",
+                "-cvf", jarFile,
+                "-C", outputDir, ".")
+
+    doLast {
+        println "✅все классы упакованы в jar-архив: ${jarFile}"
+    }
+}
+
+tasks.register('custom-clean', Exec){
+    group = "custom"
+    description = "удаление скомпилированных классов, всех временных файлови jar-архива"
+
+    def outputDir = layout.buildDirectory.get().asFile.absolutePath
+    println outputDir
+//    def jarFile = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile
+
+    commandLine "rm", "-rf", outputDir
+//    commandLine("rm", "-rf", jarFile)
+
+    doLast {
+        println "✅все скомпилированные классы и jar-архивы удалены"
+    }
+}

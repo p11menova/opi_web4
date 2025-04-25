@@ -99,14 +99,57 @@ tasks.register('custom-clean', Exec){
     group = "custom"
     description = "удаление скомпилированных классов, всех временных файлови jar-архива"
 
-    def outputDir = layout.buildDirectory.get().asFile.absolutePath
-    println outputDir
+    def buildDir = layout.buildDirectory.get().asFile.absolutePath
+    println buildDir
 //    def jarFile = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile
 
-    commandLine "rm", "-rf", outputDir
+    commandLine "rm", "-rf", buildDir
 //    commandLine("rm", "-rf", jarFile)
 
     doLast {
         println "✅все скомпилированные классы и jar-архивы удалены"
     }
 }
+
+
+
+
+tasks.register("custom-native2ascii"){
+
+    group = "custom"
+    description = "преобразование native2ascii для копий файлов локализации " +
+            "(для тестирования сценария все строковые параметры необходимо вынести из классов в файлы локализации)"
+
+    def convertToUnicode = new GroovyShell().evaluate(file('scripts/convertToUnicode.groovy'))
+
+
+    def inputDir = file("src/main/resources/")
+    def outputDir = layout.buildDirectory.dir("native2ascii").get().asFile
+
+    inputs.dir inputDir
+    outputs.dir outputDir
+
+    doLast {
+        if (!outputDir.exists()) {
+            outputDir.mkdirs()
+        }
+        // Process each .properties file in the input directory
+        fileTree(inputDir).matching {
+            include "**/messages*.properties"
+        }.each { file ->
+            def relativePath = inputDir.toPath().relativize(file.toPath()).toString()
+            def outputFile = new File(outputDir, relativePath)
+            outputFile.parentFile.mkdirs()
+            println "converting: ${file}"
+            outputFile.withWriter("UTF-8") { writer ->
+                file.eachLine("UTF-8") { line ->
+                    writer.writeLine( (String) convertToUnicode(line))
+                }
+            }
+        }
+        println "✅конвертация завершена. результат в: ${outputDir}"
+    }
+
+}
+
+

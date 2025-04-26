@@ -202,7 +202,19 @@ tasks.register("custom-xml") {
     group = "custom"
     description = "валидация всех xml-файлов в проекте"
 
-    def xmlFiles = fileTree("src/main/resources").matching {
-        include "**/*.xml"
+    def xmlFilesDir = layout.projectDirectory.dir("src/main/resources").asFileTree // путь к директории с xml-файлами
+
+    doLast {
+        def script = new GroovyShell().parse(file('scripts/validateXml.groovy'))
+
+        xmlFilesDir.each { file ->
+            if (file.absolutePath.endsWith(".xml")) {
+                println "валидирую файл: ${file.name}\n"
+                script.validateXmlFile(file)
+            }
+
+        }
+        println "✅валидация успешно завершена"
     }
 }
+

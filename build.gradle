@@ -3,7 +3,9 @@ plugins {
     id 'org.springframework.boot' version '3.4.5'
     id 'io.spring.dependency-management' version '1.1.7'
 }
-
+ext {
+    springBootVersion = '3.2.5'
+}
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
 
@@ -32,7 +34,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     implementation 'at.favre.lib:bcrypt:0.9.0'
-    implementation 'org.postgresql:postgresql:42.6.0'
+    implementation 'org.postgresql:postgresql:42.7.3'
 
 }
 
@@ -76,26 +78,70 @@ tasks.register('custom-compile', Exec) {
     }
 }
 
+springBoot {
+    mainClass = 'com.example.web4_2.Web4Application' // замените на класс с `@SpringBootApplication`
+}
 
-tasks.register('custom-build', Exec) {
+tasks.register('custom-build') {
     group = "custom"
-    description = "компиляция исходных кодов проекта (посредством вызова цели компайл) и их упаковка в исполняемый jar-архив"
+    description = " компиляция исходных кодов проекта и их упаковка в исполняемый jar-архив. Компиляцию исходных кодов реализовать посредством вызова цели compile"
 
-    dependsOn('custom-compile')
+    dependsOn 'custom-compile'
 
-    def outputDir = layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
-    def jarFile = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile
+    def outputDir = layout.buildDirectory.dir("classes/java/main").get().asFile
+    def fatJar = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile
+    def tempDir = layout.buildDirectory.dir("tmp-fat").get().asFile
+    def manifestFile = layout.buildDirectory.file("manifest/MANIFEST.MF").get().asFile
 
-    commandLine("jar",
-                "-cvf", jarFile,
-                "-C", outputDir, ".")
+    doFirst {
+        println "🛠️ начинаю сборку fat-jar..."
 
+        tempDir.deleteDir()
+        tempDir.mkdirs()
+
+        copy {
+            from outputDir
+            into tempDir
+        }
+
+        copy {
+            from layout.projectDirectory.dir("src/main/resources")
+            into tempDir
+        }
+
+        configurations.runtimeClasspath.files.each { file ->
+            if (file.name.endsWith(".jar")) {
+                copy {
+                    from zipTree(file)
+                    into tempDir
+
+                    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+                }
+            }
+        }
+        println "🛠 создаю манифест-файл..."
+
+        manifestFile.parentFile.mkdirs()
+        manifestFile.text = """\
+Manifest-Version: 1.0
+Main-Class: com.example.web4_2.Web4Application
+""".replace("\n", "\r\n")
+
+    }
     doLast {
-        println "✅все классы упакованы в jar-архив: ${jarFile}"
+        exec {
+            executable = "jar"
+            args = ["cvfm",
+                    fatJar.absolutePath,
+                    manifestFile.absolutePath,
+                    "-C", tempDir.absolutePath, "."]
+        }
+        println "✅ jar-архив успешно собран: ${fatJar.absolutePath.replace(projectDir.absolutePath + '/', '')}"
     }
 }
 
-tasks.register('custom-clean', Exec){
+
+tasks.register('custom-clean', Exec) {
     group = "custom"
     description = "удаление скомпилированных классов, всех временных файлови jar-архива"
 
@@ -111,10 +157,7 @@ tasks.register('custom-clean', Exec){
     }
 }
 
-
-
-
-tasks.register("custom-native2ascii"){
+tasks.register("custom-native2ascii") {
 
     group = "custom"
     description = "преобразование native2ascii для копий файлов локализации " +
@@ -143,7 +186,7 @@ tasks.register("custom-native2ascii"){
             println "converting: ${file}"
             outputFile.withWriter("UTF-8") { writer ->
                 file.eachLine("UTF-8") { line ->
-                    writer.writeLine( (String) convertToUnicode(line))
+                    writer.writeLine((String) convertToUnicode(line))
                 }
             }
         }
@@ -153,3 +196,26 @@ tasks.register("custom-native2ascii"){
 }
 
 
+tasks.register("custom-scp", Exec) {
+    group = "custom"
+    description = "перемещение собранного проекта по scp на выбранный сервер по завершению сборки. Предварительно необходимо выполнить сборку проекта (цель build)"
+
+    dependsOn("custom-build")
+
+    def jarFile = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile.absolutePath
+
+    def remoteHost = "helios.se.ifmo.ru"
+    def remoteUser = "s409342"
+    def remoteDirWebLab4 = "~/web_lab4"
+
+
+    doFirst {
+        println "Copying JAR to ${remoteUser}@${remoteHost}:${remoteDirWebLab4}"
+    }
+
+    commandLine "scp", "-P 2222", jarFile, "${remoteUser}@${remoteHost}:${remoteDirWebLab4}"
+
+    doLast {
+        println '✅jar-архив успешно скопирован на удаленный сервер'
+    }
+}

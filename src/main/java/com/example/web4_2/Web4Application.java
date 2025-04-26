@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class Web4Application {
+    private String to_show_diff_work = "jopa";
     static {
         try {
             Class.forName("org.postgresql.Driver");

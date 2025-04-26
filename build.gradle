@@ -1,4 +1,3 @@
-import org.springframework.boot.gradle.tasks.bundling.BootJar
 plugins {
     id 'java'
     id 'org.springframework.boot' version '3.4.5'
@@ -181,7 +180,7 @@ tasks.register("custom-scp", Exec) {
 
     dependsOn("custom-build")
 
-    def jarFile = layout.buildDirectory.file("jar/${project.name}-${project.version}.jar").get().asFile.absolutePath
+    def jarFile = layout.buildDirectory.file("libs/${project.name}-${project.version}.jar").get().asFile.absolutePath
 
     def remoteHost = "helios.se.ifmo.ru"
     def remoteUser = "s409342"
@@ -205,5 +204,5 @@ tasks.register("custom-xml") {
 
     def xmlFiles = fileTree("src/main/resources").matching {
         include "**/*.xml"
-    } в
+    }
 }

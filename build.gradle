@@ -74,7 +74,6 @@ tasks.register('custom-compile', Exec) {
     def deps = sourceSets.main.compileClasspath.asPath
     def cp = [deps, outputDir.absolutePath].join(File.pathSeparator)
 
-    println cp
 
 
     commandLine = ['javac',
@@ -117,7 +116,7 @@ tasks.register('custom-build', Jar) {
     destinationDirectory = layout.buildDirectory.dir("libs")
 
     doLast {
-        println "✅jar-архив собран в: ${archiveFile.get().asFile.absolutePath.replace(projectDir.absolutePath + '/', '')}"
+        println "✅jar-архив успешно собран в: ${archiveFile.get().asFile.absolutePath.replace(projectDir.absolutePath + '/', '')}"
     }
 }
 
@@ -127,7 +126,6 @@ tasks.register('custom-clean', Exec) {
     description = "удаление скомпилированных классов, всех временных файлови jar-архива"
 
     def buildDir = layout.buildDirectory.get().asFile.absolutePath
-    println buildDir
 
     commandLine "rm", "-rf", buildDir
 
@@ -198,7 +196,7 @@ tasks.register("custom-scp", Exec) {
     }
 }
 
-tasks.register("custom-xml") {
+tasks.register("xml") {
     group = "custom"
     description = "валидация всех xml-файлов в проекте"
 
@@ -218,3 +216,92 @@ tasks.register("custom-xml") {
     }
 }
 
+tasks.register("music"){
+    group = "custom"
+    description = "воспроизведение музыки по завершению сборки (цель build)"
+
+    dependsOn "custom-build"
+
+    def musicFile = file("src/main/resources/Макс Корж - Малый повзрослел.mp3") // путь до твоего файла
+
+    doLast {
+        if (!musicFile.exists()) {
+            throw new GradleException("не будет подлой еврейской музыки, файл не найден: ${musicFile} (")
+        }
+
+        exec {
+            executable = 'afplay'
+            args = [musicFile.absolutePath]
+        }
+        println "✅музыка"
+    }
+}
+
+
+
+import java.security.MessageDigest
+
+tasks.register('doc') {
+    group = 'custom'
+    description = 'добавление в MANIFEST.MF MD5 и SHA-1 файлов проекта, а также генерация и добавление в архив javadoc по всем классам проекта.'
+
+    dependsOn 'custom-compile'
+
+    def outputDir = layout.buildDirectory.dir("classes/java/main/com/example/web4_2").get().asFile
+    def manifestFile = layout.buildDirectory.file("tmp/custom-build/MANIFEST.MF").get().asFile
+    def javadocDir = layout.buildDirectory.dir("docs/javadoc").get().asFile
+    def javadocJar = layout.buildDirectory.file("docs/javadoc.jar").get().asFile
+
+    doLast {
+        println "генерирую контрольные суммы MD5 SHA-1..."
+
+        def files = outputDir.listFiles().findAll { it.isFile() }
+
+        def md5Digest = MessageDigest.getInstance("MD5")
+        def sha1Digest = MessageDigest.getInstance("SHA-1")
+
+        def md5Strings = []
+        def sha1Strings = []
+
+        files.each { file ->
+            def bytes = file.bytes
+            md5Digest.update(bytes)
+            sha1Digest.update(bytes)
+
+            def md5Hex = md5Digest.digest().encodeHex().toString()
+            def sha1Hex = sha1Digest.digest().encodeHex().toString()
+
+            md5Strings << "${file.name}: $md5Hex"
+            sha1Strings << "${file.name}: $sha1Hex"
+
+            // Обнуляем digest после каждого файла
+            md5Digest.reset()
+            sha1Digest.reset()
+        }
+
+        // Дописываем в MANIFEST
+        manifestFile.parentFile.mkdirs()
+        manifestFile.text += "\r\n" // переход для новых записей
+        manifestFile.text += "MD5-Checksums: ${md5Strings.join(', ')}\r\n"
+        manifestFile.text += "SHA1-Checksums: ${sha1Strings.join(', ')}\r\n"
+
+        println "MD5 и SHA-1 добавлены в манифест"
+
+        println "генерирую Javadoc..."
+
+        ant.javadoc(
+                destdir: javadocDir,
+                sourcepath: sourceSets.main.java.srcDirs.join(File.pathSeparator),
+                packagenames: "*",
+                classpath: configurations.runtimeClasspath.asPath,
+                encoding: "UTF-8"
+        )
+
+        ant.jar(
+                destfile: javadocJar,
+                basedir: javadocDir
+        )
+
+        println "✅ документация Javadoc успешно содана: ${javadocJar}"
+    }
+}

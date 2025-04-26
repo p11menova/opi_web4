@@ -75,9 +75,8 @@ tasks.register('custom-compile', Exec) {
     def cp = [deps, outputDir.absolutePath].join(File.pathSeparator)
 
 
-
     commandLine = ['javac',
-                    '-parameters',
+                   '-parameters',
                    '-d', outputDir.absolutePath,
                    '-cp', cp] + javaFiles.collect { it.absolutePath }
 
@@ -95,9 +94,9 @@ tasks.register('custom-build', Jar) {
     dependsOn 'custom-compile'     //  компиляция + копирование lib
 
     archiveBaseName = project.name
-    archiveVersion  = project.version.toString()
+    archiveVersion = project.version.toString()
 
-    copy{
+    copy {
         from configurations.runtimeClasspath
         into libsDir
     }
@@ -216,7 +215,7 @@ tasks.register("xml") {
     }
 }
 
-tasks.register("music"){
+tasks.register("music") {
     group = "custom"
     description = "воспроизведение музыки по завершению сборки (цель build)"
 
@@ -236,7 +235,6 @@ tasks.register("music"){
         println "✅музыка"
     }
 }
-
 
 
 import java.security.MessageDigest
@@ -302,6 +300,63 @@ tasks.register('doc') {
                 basedir: javadocDir
         )
 
-        println "✅ документация Javadoc успешно содана: ${javadocJar}"
+        println "✅документация Javadoc успешно содана: ${javadocJar}"
+    }
+}
+
+
+tasks.register('custom-diff') {
+    group = 'custom'
+    description = 'осуществляет проверку состояния рабочей копии, и, если изменения касаются классов, указанных в файле параметров выполняет commit в репозиторий git.'
+
+    def paramFile = file('monitoring_classes.txt')
+
+    inputs.file paramFile
+    outputs.dir layout.buildDirectory.dir('git-status')
+
+    doLast {
+        def modifiedClasses = []
+        def monitoredClasses = paramFile.readLines().collect {
+                it.trim()
+            }.findAll {
+                it
+            }
+
+        def gitStatusResult = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'status', '--porcelain'
+            standardOutput = gitStatusResult
+        }
+
+        def gitStatus = gitStatusResult.toString().trim()
+
+        gitStatus.eachLine { line ->
+            def parts = line.trim().split(" ", 2)
+            def typeOfChange = parts[0] // M: Modified A: Added D: Deleted R: Renamed C: Copied U: Unmerged ??: Untracked
+            def filePath = parts[1]
+
+
+            if (filePath.endsWith('.java')) {
+                def className = filePath.replace('.java', '').replace('/', '.')
+
+                if (monitoredClasses.contains(className)) {
+                    modifiedClasses << filePath
+                    println "⚙️были внесены изменения касаемо этого класса: $className"
+                }
+            }
+        }
+
+        if (modifiedClasses) {
+            println "⚙️сейчас я сделаю коммит..."
+            exec {
+                commandLine 'git', 'add', modifiedClasses.join(" ")
+            }
+            exec {
+                commandLine 'git', 'commit', '-m', "committing changes for monitored classes: ${modifiedClasses.join(', ')}"
+            }
+            println "✅изменения касаемо классов ${modifiedClasses.join(', ')} были успешно закоммичены"
+        } else {
+            println "✅в классы, объявленные в monitoring_classes.txt не было внесено изменений"
+        }
     }
 }

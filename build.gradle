@@ -58,9 +58,7 @@ tasks.register('custom-compile', Exec) {
     def outputDir = layout.buildDirectory.dir("classes/java/main").get().asFile
 
     doFirst {
-        def javaFiles = files(project.ext.useAltSrc ?
-                layout.projectDirectory.dir("altSrc").asFile :
-                sourceSets.main.java.srcDirs)
+        def javaFiles = files(project.ext.useAltSrc ? layout.projectDirectory.dir("altSrc").asFile : sourceSets.main.java.srcDirs)
                 .asFileTree
                 .matching { include '**/*.java' }
                 .files
@@ -133,8 +131,7 @@ tasks.register('custom-clean', Exec) {
 tasks.register("custom-native2ascii") {
 
     group = "custom"
-    description = "преобразование native2ascii для копий файлов локализации " +
-            "(для тестирования сценария все строковые параметры необходимо вынести из классов в файлы локализации)"
+    description = "преобразование native2ascii для копий файлов локализации " + "(для тестирования сценария все строковые параметры необходимо вынести из классов в файлы локализации)"
 
     def convertToUnicode = new GroovyShell().evaluate(file('scripts/convertToUnicode.groovy'))
 
@@ -158,8 +155,7 @@ tasks.register("custom-native2ascii") {
             outputFile.parentFile.mkdirs()
             println "converting: ${file}"
             outputFile.withWriter("UTF-8") { writer ->
-                file.eachLine("UTF-8") { line ->
-                    writer.writeLine((String) convertToUnicode(line))
+                file.eachLine("UTF-8") { line -> writer.writeLine((String) convertToUnicode(line))
                 }
             }
         }
@@ -283,18 +279,14 @@ tasks.register('doc') {
 
         println "генерирую Javadoc..."
 
-        ant.javadoc(
-                destdir: javadocDir,
+        ant.javadoc(destdir: javadocDir,
                 sourcepath: sourceSets.main.java.srcDirs.join(File.pathSeparator),
                 packagenames: "*",
                 classpath: configurations.runtimeClasspath.asPath,
-                encoding: "UTF-8"
-        )
+                encoding: "UTF-8")
 
-        ant.jar(
-                destfile: javadocJar,
-                basedir: javadocDir
-        )
+        ant.jar(destfile: javadocJar,
+                basedir: javadocDir)
 
         println "✅документация Javadoc успешно содана: ${javadocJar}"
     }
@@ -358,8 +350,7 @@ tasks.register('custom-diff') {
 
 tasks.register('custom-env') {
     group = 'custom'
-    description = 'осуществляет сборку и запуск программы в альтернативных окружениях; ' +
-            'окружение задается версией java и набором аргументов виртуальной машины в файле параметров.'
+    description = 'осуществляет сборку и запуск программы в альтернативных окружениях; ' + 'окружение задается версией java и набором аргументов виртуальной машины в файле параметров.'
 
     def envFile = file('env.properties')
 
@@ -388,9 +379,7 @@ tasks.register('custom-env') {
 
 tasks.register('alt-helper-replace') {
     group = 'custom'
-    description = 'создаёт альтернативную версию программы с измененными именами переменных и классов ' +
-            '(используя задание replace/replaceregexp в файлах параметров) и упаковывает её в jar-архив.' +
-            ' Для создания jar-архива использует цель build.'
+    description = 'создаёт альтернативную версию программы с измененными именами переменных и классов ' + '(используя задание replace/replaceregexp в файлах параметров) и упаковывает её в jar-архив.' + ' Для создания jar-архива использует цель build.'
 
     // я хочу копировать папку срц в альтсрцдир - в ней изменять согласно файлы
     // изменять глобальную переменную срцдир + вызывать build
@@ -480,8 +469,7 @@ tasks.register('alt-helper-print-success') {
 
 tasks.register('custom-alt') {
     group = 'custom'
-    description = 'создаёт альтернативную версию программы с измененными именами переменных и классов (используя задание replace/replaceregexp в файлах параметров) и упаковывает её в jar-архив.' +
-            ' Для создания jar-архива использует цель build.'
+    description = 'создаёт альтернативную версию программы с измененными именами переменных и классов (используя задание replace/replaceregexp в файлах параметров) и упаковывает её в jar-архив.' + ' Для создания jar-архива использует цель build.'
 
     dependsOn 'alt-helper-replace'
 
@@ -496,7 +484,10 @@ tasks.register('custom-alt') {
 
 tasks.register('history') {
     group = 'custom'
-    description = 'Откатывает репозиторий до рабочей ревизии если сборка падает, и делает diff.'
+    description = 'если проект не удаётся скомпилировать (цель compile), загружается предыдущая версия из репозитория git. '
+    + 'Операция повторяется до тех пор, пока проект не удастся собрать, либо не будет получена самая первая ревизия ' +
+            'из репозитория. Если такая ревизия найдена, то формируется файл, содержащий результат операции ' +
+            'diff для всех файлов, измёненных в ревизии, следующей непосредственно за последней работающей.'
 
     def originalHead = ''
     def workingRevision = ''
@@ -516,9 +507,7 @@ tasks.register('history') {
             standardOutput = out
         }
 
-        List<String> gitLog = out.toString().trim().isEmpty() ?
-                [] :
-                out.toString().trim().split("\n").toList()
+        List<String> gitLog = out.toString().trim().isEmpty() ? [] : out.toString().trim().split("\n").toList()
 
         println "⚙️загружено: ${gitLog.size()} коммитов репозитория"
 
@@ -574,43 +563,36 @@ tasks.register('history') {
 
 tasks.register('team') {
     group = 'custom'
-    description = 'Получает последние 4 ревизии из Git, собирает их, пакует jar-ы в zip-архив.'
+    description = 'осуществляет получение из git-репозитория 4 предыдущих ревизий, их сборку (по аналогии ' + 'с основной) и упаковку получившихся jar-файлов в zip-архив. Сборку реализовать посредством вызова цели build.'
 
     def teamBuildDir = layout.buildDirectory.dir("team-jars").get().asFile
     def zipOutput = layout.buildDirectory.file("team-jars/team_builds.zip").get().asFile
 
     doLast {
-        println "🛠 Начинаем team-сборку..."
-
-        // Сохраняем текущую ревизию
         def originalRev = getCurrentGitRevision()
 
-        // Получаем 4 последних ревизии
         def revisions = getLastGitRevisions(4)
-        println "📜 Найдено ревизий: ${revisions}"
 
-        // Очищаем папку для jar-ников
         if (teamBuildDir.exists()) {
             project.delete(teamBuildDir)
         }
         teamBuildDir.mkdirs()
 
         revisions.eachWithIndex { rev, idx ->
-            println "⏪ Переходим на ревизию: $rev"
+            println "⚙️переходим на ревизию: $rev"
             gitCheckout(rev)
 
             try {
-                println "🔨 Строим проект на ревизии $rev"
+                println "⚙️билд проекта на ревизии $rev"
                 exec {
                     commandLine './gradlew', 'custom-build'
                 }
 
-                // Копируем собранный jar
                 def jarName = "${project.name}-${project.version}-rev${idx + 1}.jar"
                 def builtJar = file("${buildDir}/libs/${project.name}-${project.version}.jar")
 
                 if (!builtJar.exists()) {
-                    throw new GradleException("⛔ Jar-файл не найден после сборки на ревизии: $rev")
+                    throw new GradleException("❌jar-файл не найден после сборки на ревизии: $rev")
                 }
 
                 copy {
@@ -619,24 +601,21 @@ tasks.register('team') {
                     rename { jarName }
                 }
 
-                println "✅ Сборка ревизии $rev успешна!"
+                println "✅билд ревизии $rev успешно завершен!"
 
             } catch (Exception e) {
-                println "❌ Ошибка сборки на ревизии $rev: ${e.message}"
+                println "❌ошибка сборки на ревизии $rev: ${e.message}"
             }
         }
 
-        // После всех сборок возвращаемся обратно
-        println "🔄 Возвращаемся на оригинальную ревизию: $originalRev"
         gitCheckout(originalRev)
 
-        // Создаём zip-архив
-        println "📦 Упаковываем jar-файлы в zip-архив..."
+        println "⚙️упаковываю jar-архивы в zip-архив..."
         ant.zip(destfile: zipOutput) {
             fileset(dir: teamBuildDir)
         }
 
-        println "✅ Упаковка завершена! Архив находится здесь: ${zipOutput.absolutePath.replace(projectDir.absolutePath + '/', '')}"
+        println "✅упаковка 4 последних ревизий завершена! " + "zip-архив находится здесь: ${zipOutput.absolutePath.replace(projectDir.absolutePath + '/', '')}"
     }
 }
 

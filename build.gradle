@@ -5,6 +5,7 @@ plugins {
 }
 ext {
     springBootVersion = '3.2.5'
+    useAltSrc = false
 }
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
@@ -35,12 +36,11 @@ dependencies {
 
     implementation 'at.favre.lib:bcrypt:0.9.0'
     implementation 'org.postgresql:postgresql:42.4.5'
-
-
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+    enable = false
 }
 
 tasks.register('welcome') {
@@ -50,36 +50,33 @@ tasks.register('welcome') {
     }
 }
 
-def srcDirs = sourceSets.main.java.srcDirs
+
 tasks.register('custom-compile', Exec) {
     group = 'custom'
     description = 'компиляция исходных кодов проекта'
 
-    def javaFiles = files(srcDirs)
-            .asFileTree
-            .matching { include '**/*.java' }
-            .files
-            .toList()
-
     def outputDir = layout.buildDirectory.dir("classes/java/main").get().asFile
 
-    inputs.files javaFiles
-    outputs.dir outputDir
-
     doFirst {
-        outputDir.mkdirs()
+        def javaFiles = files(project.ext.useAltSrc ?
+                layout.projectDirectory.dir("altSrc").asFile :
+                sourceSets.main.java.srcDirs)
+                .asFileTree
+                .matching { include '**/*.java' }
+                .files
+                .toList()
+
+        // формируем classpath
+        def deps = sourceSets.main.compileClasspath.asPath + ":" + sourceSets.test.compileClasspath.asPath
+        def cp = [deps, outputDir.absolutePath].join(File.pathSeparator)
+
+        delete(outputDir) // удаляем старые классы
+
+        commandLine = ['javac',
+                       '-parameters',
+                       '-d', outputDir.absolutePath,
+                       '-cp', cp] + javaFiles.collect { it.absolutePath }
     }
-
-    // формируем classpath
-    def deps = sourceSets.main.compileClasspath.asPath
-    def cp = [deps, outputDir.absolutePath].join(File.pathSeparator)
-
-
-    commandLine = ['javac',
-                   '-parameters',
-                   '-d', outputDir.absolutePath,
-                   '-cp', cp] + javaFiles.collect { it.absolutePath }
-
     doLast {
         println "✅все исходные файлы скомпилированы в: ${outputDir.absolutePath.replace(projectDir.absolutePath + '/', '')}"
     }
@@ -315,10 +312,10 @@ tasks.register('custom-diff') {
     doLast {
         def modifiedClasses = []
         def monitoredClasses = paramFile.readLines().collect {
-                it.trim()
-            }.findAll {
-                it
-            }
+            it.trim()
+        }.findAll {
+            it
+        }
 
         def gitStatusResult = new ByteArrayOutputStream()
         exec {
@@ -383,9 +380,115 @@ tasks.register('custom-env') {
 
         def jarPath = "${buildDir}/libs/web4_2-0.0.1-SNAPSHOT.jar"
         exec {
-            executable(javaExecutable)
-            args(jvmArgsList + [ "-jar", jarPath])
+            executable("java")
+            args(jvmArgsList + ["-jar", jarPath])
         }
     }
 }
 
+tasks.register('alt-helper-replace') {
+    group = 'custom'
+    description = 'создаёт альтернативную версию программы с измененными именами переменных и классов ' +
+            '(используя задание replace/replaceregexp в файлах параметров) и упаковывает её в jar-архив.' +
+            ' Для создания jar-архива использует цель build.'
+
+    // я хочу копировать папку срц в альтсрцдир - в ней изменять согласно файлы
+    // изменять глобальную переменную срцдир + вызывать build
+    def srcDirs = sourceSets.main.java.srcDirs
+    def altSrcDirs = layout.projectDirectory.dir("altSrc").asFile
+    if (altSrcDirs.exists()) {
+        project.delete(altSrcDirs)
+    }
+    altSrcDirs.mkdirs()
+    copy {
+        from srcDirs
+        into altSrcDirs
+    }
+//    def testFolder = new File(altSrcDirs, "test")
+//    if (testFolder.exists()) {
+//        project.delete(testFolder)
+//    }
+    // как мне из altSrcDirs удалить папку тест?
+    def replacementsFile = layout.projectDirectory.file("replacements.properties").asFile
+    def replacements = new Properties()
+    replacementsFile.withInputStream {
+        replacements.load(it)
+    }
+
+    altSrcDirs.eachFileRecurse { file ->
+
+        if (file.name.endsWith('.java')) {
+            def text = file.text
+            replacements.each { key, value ->
+                println "⚙️заменяю $key на $value в ${file.name}..."
+                text = text.replaceAll(key, value)
+            }
+            file.text = text
+
+            replacements.each { key, value ->
+                if (file.name == "${key}.java") {
+                    println "⚙️переименовываю файл ${file.name} в ${value}.java..."
+                    def newFile = new File(file.parentFile, "${value}.java")
+                    if (!file.renameTo(newFile)) {
+                        throw new GradleException("не удалось переименовать файл ${file.name} в ${newFile.name} (")
+                    }
+                    println "файл переименован: ${file.name} → ${newFile.name}"
+                } else {
+                    if (file.name.contains(key)) {
+                        println "⚙️переименовываю файл ${file.name} в ${file.name.replace(key, value)}..."
+                        value = file.name.replace(key, value)
+                        def newFile = new File(file.parentFile, "${value}")
+                        if (!file.renameTo(newFile)) {
+                            throw new GradleException("не удалось переименовать файл ${file.name} в ${newFile.name} (")
+                        }
+                        println "файл переименован: ${file.name} → ${newFile.name}"
+
+                    }
+                }
+            }
+        }
+    }
+
+
+}
+tasks.register('alt-helper-cleanup') {
+    group = 'custom'
+    description = 'очистка altSrc и сброс useAltSrc'
+
+    doLast {
+        println "⚙️очищаю altSrc и сбрасываю useAltSrc..."
+        def altSrcDir = layout.projectDirectory.dir("altSrc").asFile
+
+        if (altSrcDir.exists()) {
+            project.delete(altSrcDir)
+            println "✅altSrc удалён."
+        }
+
+        project.ext.useAltSrc = false
+        println "✅project.ext.useAltSrc сброшен в false."
+    }
+}
+tasks.register('alt-helper-print-success') {
+    group = 'custom'
+    description = 'выводит сообщение об успешной сборке альтернативной версии'
+    dependsOn 'alt-helper-cleanup'
+
+    doLast {
+        println "✅альтернативная версия успешно собрана и упакована в jar-архив."
+    }
+}
+
+tasks.register('custom-alt') {
+    group = 'custom'
+    description = 'создаёт альтернативную версию программы с измененными именами переменных и классов (используя задание replace/replaceregexp в файлах параметров) и упаковывает её в jar-архив.' +
+            ' Для создания jar-архива использует цель build.'
+
+    dependsOn 'alt-helper-replace'
+
+    doFirst {
+        project.ext.useAltSrc = true
+    }
+
+    finalizedBy 'custom-build', 'alt-helper-cleanup', 'alt-helper-print-success'
+
+}

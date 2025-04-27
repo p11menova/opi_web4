@@ -541,6 +541,9 @@ tasks.register('history') {
 
                 workingRevision = rev
                 previousRevision = (i > 0) ? gitLog[i-1] : null
+                exec {
+                    commandLine 'git', 'branch', '-f', 'master', rev
+                }
 
                 break
             } catch (Exception e) {

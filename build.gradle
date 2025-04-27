@@ -360,3 +360,48 @@ tasks.register('custom-diff') {
         }
     }
 }
+
+tasks.register('custom-env') {
+    group = 'custom'
+    description = 'Builds and runs the program in alternative environments specified in a parameter file.'
+
+    def envFile = file('env.properties')
+
+    inputs.file envFile
+    outputs.dir layout.buildDirectory.dir('env-output')
+
+    doLast {
+        def props = new Properties()
+        envFile.withInputStream {
+            props.load(it)
+        }
+
+        def javaVersion = props.getProperty('java.version')
+        def jvmArgsList = props.getProperty('jvm.args', '').split("\\s+").findAll { it }
+
+        println "🛠 Используется Java версия: $javaVersion"
+        println "🛠 JVM аргументы: $jvmArgsList"
+
+        def javaExecutable = "/Library/Java/JavaVirtualMachines/temurin-${javaVersion}.jdk/Contents/Home/bin/java"
+
+        if (!file(javaExecutable).exists()) {
+            println "⚠️ Внимание: файл $javaExecutable не найден. Будет использован системный java."
+            javaExecutable = "java"
+        }
+
+        def jarPath = "${buildDir}/libs/web4_2-0.0.1-SNAPSHOT.jar"
+
+//        exec {
+//            executable = javaExecutable
+//            args = jvmArgsList + ['-jar', jarPath]
+//        }
+        println jvmArgsList.join(" ")
+//        commandLine javaExecutable jvmArgsString '-jar' jarPath
+
+        exec {
+            executable(javaExecutable)
+            args(jvmArgsList + [ "-jar", jarPath])
+        }
+    }
+}
+

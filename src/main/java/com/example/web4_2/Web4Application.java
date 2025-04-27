@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public fdfdclass Web4Application {
+public class Web4Application {
     private String to_show_diff_work = "jopa";
     static {
         try {

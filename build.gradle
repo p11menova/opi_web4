@@ -614,6 +614,9 @@ tasks.register('team') {
         ant.zip(destfile: zipOutput) {
             fileset(dir: teamBuildDir)
         }
+        exec {
+            commandLine "git", "checkout", 'master'
+        }
 
         println "✅упаковка 4 последних ревизий завершена! " + "zip-архив находится здесь: ${zipOutput.absolutePath.replace(projectDir.absolutePath + '/', '')}"
     }

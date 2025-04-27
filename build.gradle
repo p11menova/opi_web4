@@ -526,7 +526,6 @@ tasks.register('history') {
             throw new GradleException("❌нет доступных коммитов в истории git(")
         }
 
-        // Пытаемся найти рабочую ревизию
         for (int i = 0; i < gitLog.size(); i++) {
             def rev = gitLog[i]
             println "⚙️переходим на ревизию: $rev"
@@ -540,7 +539,7 @@ tasks.register('history') {
                 println "✅проект успешно скомпилировался на ревизии: $rev"
 
                 workingRevision = rev
-                previousRevision = (i > 0) ? gitLog[i-1] : null
+                previousRevision = (i > 0) ? gitLog[i - 1] : null
                 exec {
                     commandLine 'git', 'branch', '-f', 'master', rev
                 }
@@ -573,4 +572,108 @@ tasks.register('history') {
 }
 
 
+tasks.register('team') {
+    group = 'custom'
+    description = 'Получает последние 4 ревизии из Git, собирает их, пакует jar-ы в zip-архив.'
+
+    def teamBuildDir = layout.buildDirectory.dir("team-jars").get().asFile
+    def zipOutput = layout.buildDirectory.file("team-jars/team_builds.zip").get().asFile
+
+    doLast {
+        println "🛠 Начинаем team-сборку..."
+
+        // Сохраняем текущую ревизию
+        def originalRev = getCurrentGitRevision()
+
+        // Получаем 4 последних ревизии
+        def revisions = getLastGitRevisions(4)
+        println "📜 Найдено ревизий: ${revisions}"
+
+        // Очищаем папку для jar-ников
+        if (teamBuildDir.exists()) {
+            project.delete(teamBuildDir)
+        }
+        teamBuildDir.mkdirs()
+
+        revisions.eachWithIndex { rev, idx ->
+            println "⏪ Переходим на ревизию: $rev"
+            gitCheckout(rev)
+
+            try {
+                println "🔨 Строим проект на ревизии $rev"
+                exec {
+                    commandLine './gradlew', 'custom-build'
+                }
+
+                // Копируем собранный jar
+                def jarName = "${project.name}-${project.version}-rev${idx + 1}.jar"
+                def builtJar = file("${buildDir}/libs/${project.name}-${project.version}.jar")
+
+                if (!builtJar.exists()) {
+                    throw new GradleException("⛔ Jar-файл не найден после сборки на ревизии: $rev")
+                }
+
+                copy {
+                    from builtJar
+                    into teamBuildDir
+                    rename { jarName }
+                }
+
+                println "✅ Сборка ревизии $rev успешна!"
+
+            } catch (Exception e) {
+                println "❌ Ошибка сборки на ревизии $rev: ${e.message}"
+            }
+        }
+
+        // После всех сборок возвращаемся обратно
+        println "🔄 Возвращаемся на оригинальную ревизию: $originalRev"
+        gitCheckout(originalRev)
+
+        // Создаём zip-архив
+        println "📦 Упаковываем jar-файлы в zip-архив..."
+        ant.zip(destfile: zipOutput) {
+            fileset(dir: teamBuildDir)
+        }
+
+        println "✅ Упаковка завершена! Архив находится здесь: ${zipOutput.absolutePath.replace(projectDir.absolutePath + '/', '')}"
+    }
+}
+
+// Получить текущую ревизию
+String getCurrentGitRevision() {
+    def out = new ByteArrayOutputStream()
+    exec {
+        executable = "git"
+        args = ["rev-parse", "HEAD"]
+        workingDir = project.projectDir
+        standardOutput = out
+        errorOutput = out
+        ignoreExitValue = true
+    }
+    return out.toString().trim()
+}
+
+// Получить N последних ревизий
+List<String> getLastGitRevisions(int count) {
+    def out = new ByteArrayOutputStream()
+    exec {
+        executable = "git"
+        args = ["rev-list", "-n", "$count", "HEAD"]
+        workingDir = project.projectDir
+        standardOutput = out
+        errorOutput = out
+        ignoreExitValue = true
+    }
+    return out.toString().trim().split("\n").toList()
+}
+
+// Переключиться на ревизию
+void gitCheckout(String revision) {
+    exec {
+        executable = "git"
+        args = ["checkout", revision]
+        workingDir = project.projectDir
+    }
+}
 

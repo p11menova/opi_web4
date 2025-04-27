@@ -492,3 +492,106 @@ tasks.register('custom-alt') {
     finalizedBy 'custom-build', 'alt-helper-cleanup', 'alt-helper-print-success'
 
 }
+
+
+tasks.register('history') {
+    group = 'custom'
+    description = 'Откатывает репозиторий до рабочей ревизии если сборка падает, и делает diff.'
+
+    def originalHead = ''
+    def workingRevision = ''
+    def previousRevision = ''
+
+    doFirst {
+        println "🧠 стартуем таску history..."
+
+        // Сохраняем оригинальную HEAD
+        originalHead = getGitRevision()
+        println "🔖 Текущая ревизия: $originalHead"
+
+        // Получаем список всех ревизий (от новых к старым)
+
+        def out = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'log', '--pretty=format:%H'
+            standardOutput = out
+        }
+
+        List<String> gitLog = out.toString().trim().isEmpty() ?
+                [] :
+                out.toString().trim().split("\n").toList()
+
+        println "📜 История коммитов загружена: ${gitLog.size()} коммитов."
+
+        if (gitLog.size() == 0) {
+            throw new GradleException("⛔ Нет доступных коммитов в истории git!")
+        }
+
+        // Пытаемся найти рабочую ревизию
+        for (int i = 0; i < gitLog.size(); i++) {
+            def rev = gitLog[i]
+            println "⏪ Переходим на ревизию: $rev"
+            gitCheckout(rev)
+
+            try {
+                exec {
+                    commandLine './gradlew', 'custom-compile'
+                }
+                println "✅ Проект собран успешно на ревизии: $rev"
+                workingRevision = rev
+                previousRevision = (i > 0) ? gitLog[i-1] : null
+
+                exec {
+                    commandLine 'git', 'branch', '-f', 'master', 'HEAD'
+                }
+                break
+            } catch (Exception e) {
+                println "❌ Ошибка компиляции на ревизии: $rev"
+                // идём дальше
+            }
+        }
+
+        if (!workingRevision) {
+            throw new GradleException("⛔ Не удалось найти рабочую ревизию! Даже самая первая не собирается.")
+        }
+
+        // Формируем diff между рабочей и следующей ревизией
+        if (previousRevision) {
+            println "🔎 Формируем diff между $workingRevision и $previousRevision"
+            def diffFile = layout.buildDirectory.file("history/diff.txt").get().asFile
+            diffFile.parentFile.mkdirs()
+
+            exec {
+                commandLine 'git', 'diff', workingRevision, previousRevision
+                standardOutput = new FileOutputStream(diffFile)
+            }
+
+            println "✅ Diff сохранён в: ${diffFile.absolutePath.replace(projectDir.absolutePath + '/', '')}"
+        } else {
+            println "ℹ️ Рабочая ревизия — самая новая. Нет следующей ревизии для diff."
+        }
+    }
+}
+
+// --- Вспомогательные функции ---
+
+// Получить текущую ревизию
+String getGitRevision() {
+    def out = new ByteArrayOutputStream()
+    exec {
+        commandLine 'git', 'rev-parse', 'HEAD'
+        standardOutput = out
+    }
+    return out.toString().trim()
+}
+
+// Получить список всех ревизий
+
+
+
+// Переключиться на конкретную ревизию
+void gitCheckout(String revision) {
+    exec {
+        commandLine 'git', 'checkout', revision
+    }
+}

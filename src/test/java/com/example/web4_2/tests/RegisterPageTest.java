@@ -28,6 +28,21 @@ public class RegisterPageTest extends BaseTest {
 
         assertTrue(Objects.requireNonNull(driver.getCurrentUrl()).contains("/graph"));
     }
+    @Test
+    void emptyRepeatedPassword(){
+        driver.get(baseUrl);
+        RegisterPage registerPage = new RegisterPage(driver);
+        registerPage.clickSwitchToRegister();
+
+        registerPage.register("reg-testpim", "reg-testpim", "");
+
+        wait.until(ExpectedConditions.alertIsPresent());
+
+        Alert alert = driver.switchTo().alert();
+
+        String alertText = alert.getText();
+        assertTrue(alertText.contains(PropertiesLoader.getProperty("alert.error.empty_repeat_password")));
+    }
 
     @Test
     void emptyPassword(){
@@ -65,7 +80,6 @@ public class RegisterPageTest extends BaseTest {
         if (testInfo.getDisplayName().equals("userAlreadyExists()")) {
             DBUtils.createUserByUsername("reg-testpim");
         }
-        super.setUp();
     }
 
     @Test
@@ -87,7 +101,6 @@ public class RegisterPageTest extends BaseTest {
         if (testInfo.getDisplayName().equals("successfulRegistration()") || testInfo.getDisplayName().equals("userAlreadyExists()")) {
             DBUtils.deleteUserByUsername("reg-testpim");
         }
-        super.tearDown();
     }
 
 }

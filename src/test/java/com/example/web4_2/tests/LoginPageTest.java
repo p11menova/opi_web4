@@ -24,6 +24,17 @@ public class LoginPageTest extends BaseTest {
         wait.until(ExpectedConditions.urlContains("/graph"));
         assertTrue(Objects.requireNonNull(driver.getCurrentUrl()).contains("/graph"));
     }
+    @Test
+    void switchToReg(){
+        driver.get(baseUrl);
+        LoginPage loginPage = new LoginPage(driver);
+        loginPage.clickSwitchToRegister();
+
+        wait.until(ExpectedConditions.visibilityOfElementLocated(
+                By.id("register-form")));
+        assertTrue(driver.findElement(By.id("register-form")).isDisplayed());
+
+    }
 
     @Test
     void wrongPassword() throws InterruptedException {

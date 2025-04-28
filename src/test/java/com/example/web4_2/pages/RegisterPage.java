@@ -29,7 +29,6 @@ public class RegisterPage {
         By fromLogToRegButton = By.id("from-login-to-reg");
         wait.until(ExpectedConditions.visibilityOfElementLocated(fromLogToRegButton)).click();
     }
-
     public void enterUsername(String username) {
         driver.findElement(usernameField).sendKeys(username);
     }

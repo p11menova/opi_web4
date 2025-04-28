@@ -14,6 +14,7 @@ public class LoginPage {
     private final By usernameField = By.id("login-username");
     private final By passwordField = By.id("login-password");
     private final By loginButton = By.id("login-button");
+    private final By switchToRegisterButton = By.id("from-login-to-reg");
 
 
     public void enterUsername(String username) {
@@ -24,6 +25,9 @@ public class LoginPage {
     }
     public void clickLoginButton() {
         driver.findElement(loginButton).click();
+    }
+    public void clickSwitchToRegister() {
+        driver.findElement(switchToRegisterButton).click();
     }
 
     public void login(String username, String password) {

@@ -1,10 +1,7 @@
 package com.example.web4_2.pages;
 
-import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.WebDriver;
-
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
+import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
@@ -12,7 +9,6 @@ import java.time.Duration;
 import java.util.List;
 
 public class GraphPage {
-
     private final WebDriver driver;
     private final WebDriverWait wait;
 
@@ -20,100 +16,100 @@ public class GraphPage {
         this.driver = driver;
         this.wait = new WebDriverWait(driver, Duration.ofSeconds(5));
     }
-
     private final By canvas = By.id("canvas");
-    private final By yInput = By.id("y-coord");
-
     private final By xButtonsContainer = By.cssSelector(".x-buttons");
     private final By radiusButtonsContainer = By.cssSelector(".radius-buttons");
-
-    private final By submitButton = By.id("check-button");
+    private final By checkButton = By.id("check-button");
     private final By clearButton = By.id("clear-button");
     private final By backButton = By.id("back-button");
+    public final By resultsRows = By.cssSelector(".results-table tbody tr");
 
-    private final By resultsTableRows = By.cssSelector(".results-table tbody tr");
 
-    public void selectX(String xValue) {
-        List<WebElement> xButtons = driver.findElement(xButtonsContainer).findElements(By.tagName("button"));
-        wait.until(ExpectedConditions.visibilityOfElementLocated(xButtonsContainer));
-
-        for (WebElement button : xButtons) {
-            System.out.println("X button text: " + "'"+button.getText()+"'"); // <-- Добавь печать
-
-            if (button.getText().trim().equals(xValue)) {
-                button.click();
-                System.out.println("Clicked X: " +"'"+ xValue+"'");
-
-                return;
-            }
-        }
-        throw new RuntimeException("Кнопка X со значением " + xValue + " не найдена");
+    public void selectX(String x) {
+        WebElement btn = findButtonInside(xButtonsContainer, x);
+        jsClick(btn);
+        wait.until(ExpectedConditions.attributeContains(btn, "class", "selected"));
     }
 
-    public void selectRadius(String rValue) {
-        List<WebElement> rButtons = driver.findElement(radiusButtonsContainer).findElements(By.tagName("button"));
-        wait.until(ExpectedConditions.visibilityOfElementLocated(radiusButtonsContainer));
-
-        for (WebElement button : rButtons) {
-            if (button.getText().trim().equals(rValue)) {
-                button.click();
-                return;
-            }
-        }
-        throw new RuntimeException("Кнопка Radius со значением " + rValue + " не найдена");
+    public void selectR(String r) {
+        WebElement btn = findButtonInside(radiusButtonsContainer, r);
+        jsClick(btn);
+        wait.until(ExpectedConditions.attributeContains(btn, "class", "selected"));
     }
 
     public void enterY(String y) {
-        WebElement input = driver.findElement(yInput);
-        wait.until(ExpectedConditions.visibilityOfElementLocated(yInput));
+        WebElement inp = wait.until(ExpectedConditions.elementToBeClickable(By.id("y-coord")));
+        inp.clear();
 
-        System.out.println("Found Y input, entering: " + y);
+        ((JavascriptExecutor) driver).executeScript(
+                "arguments[0].value = arguments[1];" +
+                        "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));" +
+                        "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",
+                inp, y);
 
-        input.clear();
-        input.sendKeys(y);
-
-        // Очень важно: вызвать событие blur для Angular, иначе он не увидит изменения
-        ((JavascriptExecutor) driver)
-                .executeScript("arguments[0].blur();", input);
-
-        // И ещё можно кидать событие input и change вручную для надёжности
-        ((JavascriptExecutor) driver)
-                .executeScript("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", input);
-        ((JavascriptExecutor) driver)
-                .executeScript("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", input);
     }
 
-    public void clickSubmit() {
-        driver.findElement(submitButton).click();
+    public void clickCheck() {
+        jsClick(driver.findElement(checkButton));
+    }
+    public void clickClear(){
+        jsClick(driver.findElement(clearButton));
+    }
+    public void clickBack(){
+        jsClick(driver.findElement(backButton));
     }
 
-    public void clickClear() {
-        driver.findElement(clearButton).click();
-    }
-
-    public void clickBack() {
-        driver.findElement(backButton).click();
-    }
-
-    public List<WebElement> getResultsRows() {
-        return driver.findElements(resultsTableRows);
-    }
-
-    public boolean checkResultExists(String x, String y, String r) {
-        List<WebElement> rows = getResultsRows();
-        for (WebElement row : rows) {
-            List<WebElement> cells = row.findElements(By.tagName("td"));
-            if (cells.size() >= 4) {
-                String cellX = cells.get(0).getText().trim();
-                String cellY = cells.get(1).getText().trim();
-                String cellR = cells.get(2).getText().trim();
-                if (cellX.equals(x) && cellY.equals(y) && cellR.equals(r)) {
-                    return true;
-                }
+    public boolean rowExists(String x, String y, String r) {
+        for (WebElement row : driver.findElements(resultsRows)) {
+            List<WebElement> td = row.findElements(By.tagName("td"));
+            if (td.size() >= 3 &&
+                    td.get(0).getText().trim().equals(x) &&
+                    td.get(1).getText().trim().equals(y) &&
+                    td.get(2).getText().trim().equals(r)) {
+                return true;
             }
         }
         return false;
     }
+    public int tableRowsNum(){
+        return driver.findElements(resultsRows).size();
+    }
+    public void clickOnCanvas(double relX, double relY) {
+        WebElement cv = driver.findElement(canvas);
 
+        // габариты элемента
+        Rectangle r = cv.getRect();
+        int offsetX = (int) Math.round(r.getWidth()  * relX) - r.getWidth()/2;
+        int offsetY = (int) Math.round(r.getHeight() * relY) - r.getHeight()/2;
+
+        // «человеческий» клик — Actions + offset
+        new Actions(driver)
+                .moveToElement(cv, offsetX, offsetY)
+                .click()
+                .perform();
+    }
+    public void waitRowsGrew(int before) {
+        new WebDriverWait(driver, Duration.ofSeconds(5))
+                .until(d -> d.findElements(resultsRows).size() > before);
+    }
+
+
+
+    private WebElement findButtonInside(By container, String text) {
+        return driver.findElement(container)
+                .findElement(By.xpath(".//button[normalize-space(text())='" + text + "']"));
+    }
+
+    private void jsClick(WebElement element) {
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+    }
+
+    public void clickCheckAndWaitForRow() {
+        int rowsBefore = driver.findElements(resultsRows).size();
+
+        jsClick(driver.findElement(checkButton));
+
+        wait.until(d -> d.findElements(resultsRows).size() > rowsBefore);
+    }
 
 }

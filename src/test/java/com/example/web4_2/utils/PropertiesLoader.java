@@ -2,20 +2,22 @@ package com.example.web4_2.utils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.Properties;
 
 public class PropertiesLoader {
     private static final Properties properties = new Properties();
 
     static {
-        try (InputStream input = PropertiesLoader.class.getClassLoader()
-                .getResourceAsStream("application-test.properties")) {
-            if (input == null) {
-                throw new RuntimeException("Не найден application-test.properties в classpath");
-            }
-            properties.load(input);
-        } catch (IOException e) {
-            throw new RuntimeException("Ошибка при загрузке application-test.properties", e);
+        try (InputStreamReader reader = new InputStreamReader(
+                Objects.requireNonNull(PropertiesLoader.class.getClassLoader()
+                        .getResourceAsStream("application-test.properties")),
+                StandardCharsets.UTF_8)) {
+            properties.load(reader);
+        } catch (Exception e) {
+            throw new RuntimeException("Не удалось загрузить application-test.properties", e);
         }
     }
 

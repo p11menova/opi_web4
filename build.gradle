@@ -523,6 +523,12 @@ tasks.register('history') {
                     commandLine './gradlew', 'custom-compile'
                 }
                 println "✅проект успешно скомпилировался на ревизии: $rev"
+                exec {
+                    commandLine 'git', 'branch', '-f', 'master', 'HEAD'
+                }
+                exec{
+                    commandLine 'git', 'checkout', 'master'
+                }
 
                 workingRevision = rev
                 previousRevision = (i > 0) ? gitLog[i - 1] : null

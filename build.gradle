@@ -69,7 +69,7 @@ tasks.register("report", Exec) {
         }
 
     }
-    commandLine 'git', 'commit', '-am', "chore(report): add tests reports"
+    commandLine 'git', 'commit', '-am', "add tests reports"
 
     doLast{
         println "✅тесты успешно пройдены, отчет сохранен в build/test-report/test-results, коммит сделан 😊"

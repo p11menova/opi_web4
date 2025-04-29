@@ -45,7 +45,39 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+    reports {
+        junitXml.required.set(true)
+        junitXml.outputLocation.set(
+                layout.buildDirectory.dir("test-results/xml")
+        )
+    }
 }
+tasks.register("report", Exec) {
+    group="custom"
+    description = "Коммитит JUnit-отчёт, только если тесты зелёные"
+
+    dependsOn(tasks.test)              // выполняем ТОЛЬКО после тестов
+    doFirst {
+        def testTask = tasks.test as Test
+
+        // если хоть один тест упал — state.failure не null
+        if (testTask.state.failure) {
+            throw new GradleException("Tests failed — отчёт не коммитим")
+        }
+
+    }
+
+    commandLine 'git', 'add', 'build/test-results/xml'
+    commandLine 'git', 'commit', '-m', "chore(report): add JUnit report for \$(date +%F)\" || true"
+
+    doLast{
+        println "✅JUnit-отчёт успешно закоммичен"
+    }
+}
+
 
 tasks.register('welcome') {
     group = 'custom'

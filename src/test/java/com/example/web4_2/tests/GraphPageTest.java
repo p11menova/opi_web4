@@ -64,7 +64,7 @@ public class GraphPageTest extends AuthorizedTest {
     }
 
     @Test
-    void graphClick(){
+    void graphClick() throws InterruptedException {
         GraphPage graph = new GraphPage(driver);
 
         int rowsBefore = graph.tableRowsNum();
@@ -74,6 +74,7 @@ public class GraphPageTest extends AuthorizedTest {
         graph.waitRowsGrew(rowsBefore);
 
         assertTrue(graph.tableRowsNum() > rowsBefore);
+
     }
 
 

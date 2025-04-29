@@ -51,7 +51,7 @@ tasks.named('test') {
     reports {
         junitXml.required.set(true)
         junitXml.outputLocation.set(
-                layout.buildDirectory.dir("test-results/xml")
+                layout.buildDirectory.dir("test-report/xml")
         )
     }
 }
@@ -70,7 +70,7 @@ tasks.register("report", Exec) {
 
     }
 
-    commandLine 'git', 'add', 'build/test-results/xml'
+    commandLine 'git', 'add', 'build/test-report/xml'
     commandLine 'git', 'commit', '-m', "chore(report): add JUnit report for \$(date +%F)\" || true"
 
     doLast{

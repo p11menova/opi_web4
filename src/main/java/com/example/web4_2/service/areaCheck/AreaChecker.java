@@ -1,4 +1,4 @@
-package com.example.web4_2.areaCheck;
+package com.example.web4_2.service.areaCheck;
 
 public class AreaChecker {
 

@@ -2,7 +2,9 @@ package com.example.web4_2;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.EnableMBeanExport;
 
+@EnableMBeanExport
 @SpringBootApplication
 public class Web4Application {
     private String to_show_diff_work = "jopa";

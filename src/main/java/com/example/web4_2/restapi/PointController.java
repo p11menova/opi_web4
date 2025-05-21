@@ -1,134 +1,94 @@
 package com.example.web4_2.restapi;
 
-import com.example.web4_2.areaCheck.AreaChecker;
+import com.example.web4_2.service.PointService;
+import com.example.web4_2.service.UserService;
+import com.example.web4_2.service.areaCheck.AreaChecker;
 import com.example.web4_2.repository.PasswordHasher;
-import com.example.web4_2.models.Point;
 import com.example.web4_2.models.User;
 import com.example.web4_2.models.UserDTO;
-import com.example.web4_2.repository.PointRepository;
 import com.example.web4_2.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Map;
 
 @RestController
 @CrossOrigin(origins = "http://localhost:4200")
 public class PointController {
     private final UserRepository userRepository;
-    private PointRepository pointRepository;
+    private final PointService pointService;
+    private final UserService userService;
 
-    public PointController(PointRepository pointRepository, UserRepository userRepository) {
-        this.pointRepository = pointRepository;
+    public PointController(UserRepository userRepository, PointService pointService, UserService userService) {
         this.userRepository = userRepository;
+        this.pointService = pointService;
+        this.userService = userService;
     }
 
     @GetMapping("/points")
     public ResponseEntity<?> getPoints(@RequestParam String username, @RequestParam String password) {
-        System.out.println("я счас буду отдавать точки");
 
-        if (userRepository.findByUsername(username).isEmpty())
-            return ResponseEntity.
-                    status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(
-                            "message", "такого юзера нет"
-                    ));
-        User user = userRepository.findByUsername(username).get();
+        try {
+            User user = userService.authenticateUser(username, password);
+            System.out.println("да такой юзер есть");
+            String pointsAsJson = userService.getPointsAsJson(user);
 
-        if (!PasswordHasher.verify(password, user.getPassword())) {
-            return ResponseEntity.
-                    status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(
-                            "message", "эмм пароли не совпадают"
-                    ));
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(pointsAsJson);
+
+        } catch (UsernameNotFoundException | BadCredentialsException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.UNAUTHORIZED);
         }
-        System.out.println("да такой юзер есть");
 
-        String pointsAsJson = user.getPointsAsJson();
-        System.out.println(pointsAsJson);
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(pointsAsJson);
     }
 
     @DeleteMapping("/clear")
     public ResponseEntity<String> clearPoints(@RequestBody UserDTO userDTO) {
         System.out.println("я поймал делит реквест");
         System.out.println(userDTO.getUsername());
+        try {
+            User user = userService.authenticateUser(userDTO.getUsername(), userDTO.getPassword());
+            user.getPoints().clear();
+            userRepository.save(user);
+            return ResponseEntity.status(HttpStatus.OK).build();
 
-        if (userRepository.findByUsername(userDTO.getUsername()).isEmpty())
-            return ResponseEntity.
-                    status(HttpStatus.NOT_FOUND)
-                    .body("такого юзера нет");
-        User user = userRepository.findByUsername(userDTO.getUsername()).get();
-        if (!PasswordHasher.verify(userDTO.getPassword(), user.getPassword())) {
-            return ResponseEntity.
-                    status(HttpStatus.NOT_FOUND)
-                    .body("эмм пароли не совпадают");
+        } catch (UsernameNotFoundException | BadCredentialsException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.UNAUTHORIZED);
         }
 
-        user.getPoints().clear();
-        userRepository.save(user);
-
-        return ResponseEntity.status(HttpStatus.OK).build();
     }
 
     @GetMapping("/check")
     public ResponseEntity<?> check(@RequestParam String username, @RequestParam String password, @RequestParam float x, @RequestParam float y, @RequestParam float r) {
-        long executionStartTime = System.currentTimeMillis();
+
         System.out.println("я счас буду проверять ПОПАЛА ли точка");
         System.out.println(x + " " + y + " " + r);
+        try {
 
-        if (userRepository.findByUsername(username).isEmpty())
-            return ResponseEntity.
-                    status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(
-                            "message", "такого юзера нет"
-                    ));
-        User user = userRepository.findByUsername(username).get();
-        if (!PasswordHasher.verify(password, user.getPassword())) {
-            return ResponseEntity.
-                    status(HttpStatus.NOT_FOUND)
-                    .body(Map.of(
-                            "message", "эмм пароли не совпадают"
-                    ));
+            User user = userService.authenticateUser(username, password);
+            String pointStringFormat = pointService.processPoint(x, y, r, user);
+
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(pointStringFormat);
+
+        } catch (UsernameNotFoundException | BadCredentialsException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.UNAUTHORIZED);
         }
 
 
-        Point point = new Point();
-        point.setX(x);
-        point.setY(y);
-        point.setRadius(r);
-        point.setResult(checkArea(x, y, r));
-
-        LocalDateTime now = LocalDateTime.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-        String formattedTime = now.format(formatter);
-
-        point.setCur_time(formattedTime);
-        point.setScript_time(System.currentTimeMillis() - executionStartTime);
-
-        point.setUser(user);
-
-
-        user.getPoints().add(point);
-        System.out.println(point.toString());
-        System.out.println("дада счас отдам новую точку");
-
-        pointRepository.save(point);
-
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(point.toString());
     }
-
-    public boolean checkArea(float x, float y, float r) {
-        return AreaChecker.check(x, y, r);
+    // опционально, для тестирования или типа выводить статистику по кликам на фронте
+    @GetMapping("/mbean-stats")
+    public ResponseEntity<String> getMBeanStats() {
+        String stats = String.format("всего точек: %d, промахов: %d, процент попадания: %.2f%%",
+                pointService.getTotalPointsCount(),
+                pointService.getMissedPointsCount(),
+                pointService.getHitRatioPercentage());
+        return ResponseEntity.ok(stats);
     }
-
 }
 
 

@@ -27,6 +27,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-web-services'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
@@ -86,6 +87,7 @@ tasks.register('welcome') {
 
 
 tasks.register('custom-compile', Exec) {
+    // указание Exec - класс задач которые исполняются вне jvm (внешний процесс)
     group = 'custom'
     description = 'компиляция исходных кодов проекта'
 
@@ -183,20 +185,45 @@ tasks.register("custom-native2ascii") {
         // Process each .properties file in the input directory
         fileTree(inputDir).matching {
             include "**/messages*.properties"
-        }.each { file ->
-            def relativePath = inputDir.toPath().relativize(file.toPath()).toString()
-            def outputFile = new File(outputDir, relativePath)
-            outputFile.parentFile.mkdirs()
-            println "converting: ${file}"
-            outputFile.withWriter("UTF-8") { writer ->
-                file.eachLine("UTF-8") { line -> writer.writeLine((String) convertToUnicode(line))
+        }.each {
+
+//                def relativePath = inputDir.toPath().relativize(file.toPath()).toString()
+                try {
+                    def relativePath = getRelativePath(inputDir, file)
+                    def newOutputFile = makenewFile(outputDir, relativePath)
+                    newOutputFile.parentFile.mkdirs()
+
+                    println "converting: ${file}"
+                    newOutputFile.withWriter("UTF-8") { writer ->
+                        file.eachLine("UTF-8") { line -> writer.writeLine((String) convertToUnicode(line))
+                        }
+                    }
+                    println "✅конвертация завершена. результат в: ${outputDir}"
+
+
+                } catch (Exception e){
+                    println e.getMessage()
                 }
-            }
+
+//                def outputFile = new File(outputDir, relativePath)
+//           utputFile.parentFile.mkdirs()
+
         }
-        println "✅конвертация завершена. результат в: ${outputDir}"
     }
 
+
 }
+String getRelativePath(File inputDir, File file) throws Exception{
+
+    def relativePath = inputDir.toPath().relativize(file.toPath()).toString()
+    return relativePath
+}
+
+File makenewFile(File outputDir, String relativePath){
+    return new File(outputDir, relativePath)
+}
+
+
 
 tasks.register("custom-scp", Exec) {
     group = "custom"
